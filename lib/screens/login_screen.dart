@@ -210,12 +210,12 @@ class _LoginScreenState extends State<LoginScreen>
             builder: (context, child) {
               return Column(
                 children: [
-                  // 🌟 Animated Header Section
+                  //  Animated Header Section
                   _buildAnimatedHeader(),
 
                   const SizedBox(height: 40),
 
-                  // 📝 Animated Form Section
+                  //  Animated Form Section
                   _buildAnimatedForm(),
                 ],
               );

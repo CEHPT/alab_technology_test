@@ -176,17 +176,17 @@ class _DashboardScreenState extends State<DashboardScreen>
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🎯 Header Section with User Info
+                  //  Header Section with User Info
                   _buildHeaderSection(),
 
                   const SizedBox(height: 32),
 
-                  // 📊 Stats Overview
+                  //  Stats Overview
                   _buildStatsOverview(),
 
                   const SizedBox(height: 32),
 
-                  // 🎪 Menu Grid
+                  // Menu Grid
                   _buildMenuGrid(),
                 ],
               );
