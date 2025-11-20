@@ -74,27 +74,78 @@ class _PostsScreenState extends State<PostsScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: const Color(0xFF1A1A1A),
+        actions: [
+          Consumer<PostsProvider>(
+            builder: (context, postsProvider, child) {
+              return IconButton(
+                icon: const Icon(Icons.refresh_rounded),
+                onPressed: () {
+                  postsProvider.refreshPosts();
+                },
+                tooltip: 'Refresh Posts',
+              );
+            },
+          ),
+        ],
       ),
       body: Consumer<PostsProvider>(
         builder: (context, postsProvider, child) {
+          // Show offline snackbar when in offline mode
+          if (postsProvider.isOffline) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.wifi_off_rounded, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'You are offline. Showing cached data.',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 20),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        },
+                      ),
+                    ],
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 4),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            });
+          }
+
           if (postsProvider.hasError && postsProvider.posts.isEmpty) {
             return _buildErrorUI(postsProvider);
           }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              await postsProvider.refreshPosts();
-            },
-            backgroundColor: Colors.white,
-            color: const Color(0xFF6C63FF),
-            child: Column(
-              children: [
-                // Stats Card
-                if (postsProvider.posts.isNotEmpty)
-                  _buildStatsCard(postsProvider),
+          return Column(
+            children: [
+              // Offline Banner
+              if (postsProvider.isOffline) _buildOfflineBanner(),
 
-                // Posts List
-                Expanded(
+              // Stats Card
+              if (postsProvider.posts.isNotEmpty)
+                _buildStatsCard(postsProvider),
+
+              // Posts List
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    await postsProvider.refreshPosts();
+                  },
+                  backgroundColor: Colors.white,
+                  color: const Color(0xFF6C63FF),
                   child: ListView.builder(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -105,8 +156,7 @@ class _PostsScreenState extends State<PostsScreen> {
                             : 0),
                     itemBuilder: (context, index) {
                       if (index == 0 && postsProvider.posts.isNotEmpty) {
-                        return const SizedBox
-                            .shrink(); // Stats card already shown
+                        return const SizedBox.shrink();
                       }
 
                       final actualIndex =
@@ -118,8 +168,8 @@ class _PostsScreenState extends State<PostsScreen> {
                       }
 
                       if (actualIndex < postsProvider.posts.length) {
-                        return _buildPostCard(
-                            postsProvider.posts[actualIndex], actualIndex);
+                        return _buildPostCard(postsProvider.posts[actualIndex],
+                            actualIndex, postsProvider.isOffline);
                       }
 
                       if (postsProvider.hasMore) {
@@ -130,10 +180,41 @@ class _PostsScreenState extends State<PostsScreen> {
                     },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.wifi_off_rounded,
+            color: Colors.orange[700],
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'You are offline. Showing cached data.',
+              style: TextStyle(
+                color: Colors.orange[800],
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -143,8 +224,11 @@ class _PostsScreenState extends State<PostsScreen> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFF9D4EDD)],
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF6C63FF),
+            postsProvider.isOffline ? Colors.orange : const Color(0xFF9D4EDD),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -159,8 +243,10 @@ class _PostsScreenState extends State<PostsScreen> {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.article_rounded,
+          Icon(
+            postsProvider.isOffline
+                ? Icons.wifi_off_rounded
+                : Icons.article_rounded,
             color: Colors.white,
             size: 32,
           ),
@@ -179,7 +265,9 @@ class _PostsScreenState extends State<PostsScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Showing latest posts',
+                  postsProvider.isOffline
+                      ? 'Showing cached data'
+                      : 'Showing latest posts',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 12,
@@ -195,7 +283,9 @@ class _PostsScreenState extends State<PostsScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              'Page ${(postsProvider.posts.length / 10).ceil()}',
+              postsProvider.isOffline
+                  ? 'Offline'
+                  : 'Page ${(postsProvider.posts.length / 10).ceil()}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -208,7 +298,7 @@ class _PostsScreenState extends State<PostsScreen> {
     );
   }
 
-  Widget _buildPostCard(Post post, int index) {
+  Widget _buildPostCard(Post post, int index, bool isOffline) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding: const EdgeInsets.all(20),
@@ -222,25 +312,62 @@ class _PostsScreenState extends State<PostsScreen> {
             offset: const Offset(0, 5),
           ),
         ],
+        border: isOffline
+            ? Border.all(color: Colors.orange.withOpacity(0.3))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Post Number
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              'Post #${post.id}',
-              style: const TextStyle(
-                color: Color(0xFF6C63FF),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+          // Header with Post Number and Offline Indicator
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6C63FF).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Post #${post.id}',
+                  style: const TextStyle(
+                    color: Color(0xFF6C63FF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-            ),
+              if (isOffline) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.wifi_off_rounded,
+                        color: Colors.orange[700],
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Cached',
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
 
           const SizedBox(height: 12),
@@ -504,6 +631,29 @@ class _PostsScreenState extends State<PostsScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            // Add cache clearing option in error state
+            if (postsProvider.posts.isNotEmpty)
+              OutlinedButton(
+                onPressed: () {
+                  postsProvider.clearCache();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey,
+                  side: const BorderSide(color: Colors.grey),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Clear Cache & Retry',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

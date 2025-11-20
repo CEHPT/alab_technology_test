@@ -1,13 +1,23 @@
 import 'dart:convert';
-import 'package:alab_technology_test/models/post_model.dart';
+import 'package:alab_technology_test/services/local_storage_services.dart';
 import 'package:http/http.dart' as http;
+import '../models/post_model.dart';
 
 class ApiService {
   static const String baseUrl = 'https://jsonplaceholder.typicode.com';
 
-  Future<List<Post>> getPosts({int page = 1, int limit = 10}) async {
+  Future<List<Post>> getPosts(
+      {int page = 1, int limit = 10, bool forceRefresh = false}) async {
     try {
-      // Simulate pagination - in real API you'd have page & limit parameters
+      // Check if we should use cache
+      if (!forceRefresh && await LocalStorageService.hasValidCache()) {
+        final cachedPosts = await LocalStorageService.getCachedPosts();
+        if (cachedPosts.isNotEmpty) {
+          return _applyPagination(cachedPosts, page, limit);
+        }
+      }
+
+      // Fetch from API
       final response = await http.get(
         Uri.parse('$baseUrl/posts'),
       );
@@ -17,23 +27,37 @@ class ApiService {
         final List<Post> posts =
             data.map((json) => Post.fromJson(json)).toList();
 
-        // Implement client-side pagination since API doesn't support it
-        final startIndex = (page - 1) * limit;
-        final endIndex = startIndex + limit;
+        // Save to local storage
+        await LocalStorageService.savePosts(posts);
 
-        if (startIndex >= posts.length) {
-          return [];
-        }
-
-        return posts.sublist(
-          startIndex,
-          endIndex > posts.length ? posts.length : endIndex,
-        );
+        return _applyPagination(posts, page, limit);
       } else {
         throw Exception('Failed to load posts: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Failed to load posts: $e');
+      // If API fails, try to load from cache
+      final cachedPosts = await LocalStorageService.getCachedPosts();
+      if (cachedPosts.isNotEmpty) {
+        print('🔄 Using cached data due to API error: $e');
+        return _applyPagination(cachedPosts, page, limit);
+      } else {
+        throw Exception('Failed to load posts: $e');
+      }
     }
+  }
+
+  // Helper method for pagination
+  List<Post> _applyPagination(List<Post> posts, int page, int limit) {
+    final startIndex = (page - 1) * limit;
+    final endIndex = startIndex + limit;
+
+    if (startIndex >= posts.length) {
+      return [];
+    }
+
+    return posts.sublist(
+      startIndex,
+      endIndex > posts.length ? posts.length : endIndex,
+    );
   }
 }

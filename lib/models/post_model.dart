@@ -19,4 +19,23 @@ class Post {
       body: json['body'],
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'userId': userId,
+      'title': title,
+      'body': body,
+    };
+  }
+
+  // Create Post from Map
+  factory Post.fromMap(Map<String, dynamic> map) {
+    return Post(
+      id: map['id'] ?? 0,
+      userId: map['userId'] ?? 0,
+      title: map['title'] ?? '',
+      body: map['body'] ?? '',
+    );
+  }
 }
